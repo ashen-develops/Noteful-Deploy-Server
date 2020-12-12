@@ -20,6 +20,7 @@ app.get('/', (req, res) => {
   res.send('Hello, world!');
 });
 
+// eslint-disable-next-line no-unused-vars
 app.use(function errorHandler(error, req, res, next) {
   let response;
   if (NODE_ENV === 'production') {

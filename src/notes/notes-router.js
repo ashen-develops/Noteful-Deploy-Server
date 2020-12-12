@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+/* eslint-disable no-unused-vars */
 const express = require('express');
 const xss = require('xss');
 const logger = require('../logger');
@@ -91,7 +93,7 @@ notesRouter
     }
     notesService
       .updateNote(req.app.get('db'), res.note.id, noteUpdates)
-      .then((updatedNote) => {
+      .then((_updatedNote) => {
         logger.info(`note with id ${res.note.id} updated`);
         res.status(204).end();
       });

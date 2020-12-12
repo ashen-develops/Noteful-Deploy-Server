@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+/* eslint-disable no-unused-vars */
 const express = require('express');
 const xss = require('xss');
 const logger = require('../logger');
