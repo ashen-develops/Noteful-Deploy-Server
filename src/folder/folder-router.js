@@ -1,12 +1,12 @@
-/* eslint-disable no-console */
+/* eslint-disable eqeqeq */
 /* eslint-disable no-unused-vars */
+const path = require('path');
 const express = require('express');
 const xss = require('xss');
-const logger = require('../logger');
-const foldersService = require('./folder-service');
+const FoldersService = require('./folders-service');
 
 const foldersRouter = express.Router();
-const bodyParser = express.json();
+const jsonParser = express.json();
 
 const serializeFolder = (folder) => ({
   id: folder.id,
@@ -16,46 +16,41 @@ const serializeFolder = (folder) => ({
 foldersRouter
   .route('/')
   .get((req, res, next) => {
-    const knex = req.app.get('db');
-    foldersService
-      .getAllFolders(knex)
-      .then((folders) => res.json(folders.map(serializeFolder)))
+    const knexInstance = req.app.get('db');
+    FoldersService.getAllFolders(knexInstance)
+      .then((folders) => {
+        res.json(folders.map(serializeFolder));
+      })
       .catch(next);
   })
-  .post(bodyParser, (req, res, next) => {
-    for (const field of ['name']) {
-      if (!req.body[field]) {
-        logger.error(`${field} is missing for folders post`);
-        return res
-          .status(400)
-          .json({ error: { message: `${field} is missing` } });
-      }
-    }
-    const newfolder = {
-      name: xss(req.body.name),
-    };
-    foldersService
-      .addFolder(req.app.get('db'), newfolder)
+  .post(jsonParser, (req, res, next) => {
+    const { name } = req.body;
+    const newFolder = { name };
+
+    for (const [key, value] of Object.entries(newFolder))
+      if (value == null)
+        return res.status(400).json({
+          error: { message: `Missing '${key}' in request body` },
+        });
+    FoldersService.addFolder(req.app.get('db'), newFolder)
       .then((folder) => {
-        console.log('folder', folder);
-        logger.info(`folder with id ${folder.id} created`);
-        res.status(201).location(`/folders/${folder.id}`).json(folder);
+        res
+          .status(201)
+          .location(path.posix.join(req.originalUrl, `/${folder.id}`))
+          .json(serializeFolder(folder));
       })
       .catch(next);
   });
 
 foldersRouter
-  .route('/:folder_id')
+  .route('/:id')
   .all((req, res, next) => {
-    const { folder_id } = req.params;
-    foldersService
-      .getFolderById(req.app.get('db'), folder_id)
+    FoldersService.getById(req.app.get('db'), req.params.id)
       .then((folder) => {
         if (!folder) {
-          logger.error(`folder with id ${folder_id} not found`);
-          return res
-            .status(404)
-            .json({ error: { message: 'folder not found' } });
+          return res.status(404).json({
+            error: { message: 'Folder doesn\'t exist' },
+          });
         }
         res.folder = folder;
         next();
@@ -63,35 +58,36 @@ foldersRouter
       .catch(next);
   })
   .get((req, res, next) => {
-    const folder = res.folder;
-    res.json(serializeFolder(folder));
+    res.json(serializeFolder(res.folder));
   })
   .delete((req, res, next) => {
-    const { folder_id } = req.params;
-    foldersService
-      .deleteFolder(req.app.get('db'), folder_id)
-      .then(() => {
-        logger.info(`folder with id ${folder_id} deleted`);
+    FoldersService.deleteFolder(req.app.get('db'), req.params.id)
+      .then((numRowsAffected) => {
         res.status(204).end();
       })
       .catch(next);
   })
-  .patch(bodyParser, (req, res, next) => {
-    const folderUpdates = req.body;
-    console.log('folderupdates', folderUpdates);
-    // eslint-disable-next-line eqeqeq
-    if (Object.keys(folderUpdates).length == 0) {
-      logger.info('folder must have values to update');
+  .patch(jsonParser, (req, res, next) => {
+    const { name } = req.body;
+    const folderToUpdate = { name };
+
+    const numberOfValues = Object.values(folderToUpdate).filter(Boolean).length;
+    if (numberOfValues === 0)
       return res.status(400).json({
-        error: { message: 'patch request must supply values' },
+        error: {
+          message: 'Request body must contain \'name\'',
+        },
       });
-    }
-    foldersService
-      .updatefolder(req.app.get('db'), res.folder.id, folderUpdates)
-      .then((updatedfolder) => {
-        logger.info(`folder with id ${res.folder.id} updated`);
+
+    FoldersService.updateFolder(
+      req.app.get('db'),
+      req.params.id,
+      folderToUpdate
+    )
+      .then((numRowsAffected) => {
         res.status(204).end();
-      });
+      })
+      .catch(next);
   });
 
 module.exports = foldersRouter;
