@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 const express = require('express');
 const xss = require('xss');
+const { v4: uuidv4 } = require('uuid');
 const logger = require('../logger');
 const NotesService = require('./notes-service');
 
@@ -9,8 +10,8 @@ const bodyParser = express.json();
 
 const serializeNote = (note) => ({
   id: note.id,
-  title: xss(note.title),
-  date_created: note.date_created,
+  name: xss(note.name),
+  modified: note.modified,
   content: xss(note.content),
   folder_id: note.folder_id,
 });
@@ -25,15 +26,15 @@ notesRouter
       .catch(next);
   })
   .post(bodyParser, (req, res, next) => {
-    for (const field of ['title', 'date_created', 'folder_id', 'content']) {
+    for (const field of ['name', 'modified', 'folder_id', 'content']) {
       if (!req.body[field]) {
         logger.error(`${field} is required`);
         return res.status(400).send(`'${field}' is required`);
       }
     }
 
-    const { title, date_created, folder_id, content } = req.body;
-    const newNote = { title, date_created, folder_id, content };
+    const { name, modified, folder_id, content } = req.body;
+    const newNote = { name, modified, folder_id, content };
 
     NotesService.insertNote(req.app.get('db'), newNote)
       .then((note) => {

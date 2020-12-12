@@ -1,9 +1,10 @@
-/* eslint-disable eqeqeq */
 /* eslint-disable no-unused-vars */
+/* eslint-disable eqeqeq */
 const path = require('path');
 const express = require('express');
 const xss = require('xss');
-const FoldersService = require('./folder-service');
+const { v4: uuidv4 } = require('uuid');
+const FoldersService = require('./folders-service');
 
 const foldersRouter = express.Router();
 const jsonParser = express.json();
@@ -32,7 +33,7 @@ foldersRouter
         return res.status(400).json({
           error: { message: `Missing '${key}' in request body` },
         });
-    FoldersService.addFolder(req.app.get('db'), newFolder)
+    FoldersService.insertFolder(req.app.get('db'), newFolder)
       .then((folder) => {
         res
           .status(201)
