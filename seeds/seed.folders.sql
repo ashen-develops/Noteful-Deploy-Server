@@ -1,1 +1,0 @@
-INSERT INTO folders(name) VALUES ('Super'),('Awesome'),('Server');
