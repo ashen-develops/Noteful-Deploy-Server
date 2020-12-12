@@ -1,9 +1,8 @@
-/* eslint-disable no-console */
 /* eslint-disable no-unused-vars */
 const express = require('express');
 const xss = require('xss');
 const logger = require('../logger');
-const notesService = require('./notes-service');
+const NotesService = require('./notes-service');
 
 const notesRouter = express.Router();
 const bodyParser = express.json();
@@ -11,92 +10,67 @@ const bodyParser = express.json();
 const serializeNote = (note) => ({
   id: note.id,
   title: xss(note.title),
+  date_created: note.date_created,
   content: xss(note.content),
-  date_created: xss(note.date_created),
   folder_id: note.folder_id,
 });
 
 notesRouter
   .route('/')
   .get((req, res, next) => {
-    const knex = req.app.get('db');
-    notesService
-      .getAllNotes(knex)
-      .then((notes) => res.json(notes.map(serializeNote)))
+    NotesService.getAllNotes(req.app.get('db'))
+      .then((notes) => {
+        res.json(notes.map(serializeNote));
+      })
       .catch(next);
   })
   .post(bodyParser, (req, res, next) => {
-    for (const field of ['title', 'content', 'folder_id']) {
+    for (const field of ['title', 'date_created', 'folder_id', 'content']) {
       if (!req.body[field]) {
-        logger.error(`${field} is missing for notes post`);
-        return res
-          .status(400)
-          .json({ error: { message: `${field} is missing` } });
+        logger.error(`${field} is required`);
+        return res.status(400).send(`'${field}' is required`);
       }
     }
-    const newNote = {
-      title: xss(req.body.title),
-      content: xss(req.body.content),
-      folder_id: req.body.folder_id,
-    };
-    notesService
-      .addNote(req.app.get('db'), newNote)
+
+    const { title, date_created, folder_id, content } = req.body;
+    const newNote = { title, date_created, folder_id, content };
+
+    NotesService.insertNote(req.app.get('db'), newNote)
       .then((note) => {
-        console.log('note', note);
-        logger.info(`note with id ${note.id} created`);
-        res.status(201).location(`/notes/${note.id}`).json(note);
+        logger.info(`Note with id ${note.id} created.`);
+        res.status(201).location(`/notes/${note.id}`).json(serializeNote(note));
       })
       .catch(next);
   });
 
 notesRouter
-  .route('/:note_id')
+  .route('/:id')
   .all((req, res, next) => {
-    const { note_id } = req.params;
-    notesService
-      .getNoteById(req.app.get('db'), note_id)
+    const { id } = req.params;
+    NotesService.getNoteById(req.app.get('db'), id)
       .then((note) => {
         if (!note) {
-          logger.error(`Note with id ${note_id} not found`);
-          return res
-            .status(404)
-            .json({ error: { message: 'Note not found' } });
+          logger.error(`Note with id ${id} not found.`);
+          return res.status(404).json({
+            error: { message: 'Note Not Found' },
+          });
         }
         res.note = note;
         next();
       })
       .catch(next);
   })
-  .get((req, res, next) => {
-    const note = res.note;
-    res.json(serializeNote(note));
+  .get((req, res) => {
+    res.json(serializeNote(res.note));
   })
   .delete((req, res, next) => {
-    const { note_id } = req.params;
-    notesService
-      .deleteNote(req.app.get('db'), note_id)
-      .then(() => {
-        logger.info(`note with id ${note_id} deleted`);
+    const { id } = req.params;
+    NotesService.deleteNote(req.app.get('db'), id)
+      .then((numRowsAffected) => {
+        logger.info(`Note with id ${id} deleted.`);
         res.status(204).end();
       })
       .catch(next);
-  })
-  .patch(bodyParser, (req, res, next) => {
-    const noteUpdates = req.body;
-    console.log('noteupdates', noteUpdates);
-    // eslint-disable-next-line eqeqeq
-    if (Object.keys(noteUpdates).length == 0) {
-      logger.info('note must have values to update');
-      return res.status(400).json({
-        error: { message: 'patch request must supply values' },
-      });
-    }
-    notesService
-      .updateNote(req.app.get('db'), res.note.id, noteUpdates)
-      .then((_updatedNote) => {
-        logger.info(`note with id ${res.note.id} updated`);
-        res.status(204).end();
-      });
   });
 
 module.exports = notesRouter;
